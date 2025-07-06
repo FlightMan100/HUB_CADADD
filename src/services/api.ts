@@ -179,6 +179,10 @@ export const dmvAPI = {
   // Vehicles
   addVehicle: (characterId: string, data: any) => 
     api.post(`/api/dmv/characters/${characterId}/vehicles`, data).then(res => res.data),
+  updateVehicle: (vehicleId: string, data: any) =>
+    api.put(`/api/dmv/vehicles/${vehicleId}`, data).then(res => res.data),
+  deleteVehicle: (vehicleId: string) =>
+    api.delete(`/api/dmv/vehicles/${vehicleId}`).then(res => res.data),
   
   // LEO functions
   searchCharacters: (query: string) => 

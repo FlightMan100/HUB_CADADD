@@ -89,9 +89,10 @@ router.get('/characters/:id', requireAuth, async (req, res) => {
     }
 
     // Check if user owns this character or has LEO/Judge access
-    const hasAccess = character.user_id === req.user.id || 
-                     hasLEOAccess(req.user) || 
-                     hasJudgeAccess(req.user);
+    const isOwner = character.user_id === req.user.id;
+    const isLEO = hasLEOAccess(req.user);
+    const isJudge = hasJudgeAccess(req.user);
+    const hasAccess = isOwner || isLEO || isJudge;
 
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied' });
@@ -122,15 +123,23 @@ router.get('/characters/:id', requireAuth, async (req, res) => {
       ORDER BY a.created_at DESC
     `, [id]);
 
-    // Get warrants
-    const warrants = await allQuery(`
+    // Get warrants - filter based on user type
+    let warrantsQuery = `
       SELECT w.*, u.username as issued_by_name, u2.username as completed_by_name
       FROM civilian_warrants w
       LEFT JOIN users u ON w.issued_by = u.id
       LEFT JOIN users u2 ON w.completed_by = u2.id
-      WHERE w.character_id = ? 
-      ORDER BY w.created_at DESC
-    `, [id]);
+      WHERE w.character_id = ?
+    `;
+    
+    // Civilians can only see completed warrants
+    if (isOwner && !isLEO && !isJudge) {
+      warrantsQuery += ` AND w.status = 'Completed'`;
+    }
+    
+    warrantsQuery += ` ORDER BY w.created_at DESC`;
+
+    const warrants = await allQuery(warrantsQuery, [id]);
 
     res.json({
       character,
@@ -138,8 +147,9 @@ router.get('/characters/:id', requireAuth, async (req, res) => {
       citations,
       arrests,
       warrants,
-      hasLEOAccess: hasLEOAccess(req.user),
-      hasJudgeAccess: hasJudgeAccess(req.user)
+      isOwner,
+      hasLEOAccess: isLEO,
+      hasJudgeAccess: isJudge
     });
   } catch (error) {
     console.error('Error fetching character details:', error);
@@ -152,12 +162,20 @@ router.put('/characters/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if user owns this character
+    // Get character to check ownership
     const character = await getQuery(`
       SELECT user_id FROM civilian_characters WHERE id = ?
     `, [id]);
 
-    if (!character || character.user_id !== req.user.id) {
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+
+    // Check permissions: owner or judge can edit
+    const isOwner = character.user_id === req.user.id;
+    const isJudge = hasJudgeAccess(req.user);
+    
+    if (!isOwner && !isJudge) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -193,17 +211,33 @@ router.post('/characters/:id/vehicles', requireAuth, async (req, res) => {
     const { id } = req.params;
     const { make, model, color, plate, registration_status, insurance_status } = req.body;
 
-    // Check if user owns this character
+    // Check if user owns this character or is a judge
     const character = await getQuery(`
       SELECT user_id FROM civilian_characters WHERE id = ?
     `, [id]);
 
-    if (!character || character.user_id !== req.user.id) {
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+
+    const isOwner = character.user_id === req.user.id;
+    const isJudge = hasJudgeAccess(req.user);
+
+    if (!isOwner && !isJudge) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
     if (!make || !model || !color || !plate) {
       return res.status(400).json({ error: 'Required fields missing' });
+    }
+
+    // Check if plate already exists
+    const existingPlate = await getQuery(`
+      SELECT id FROM civilian_vehicles WHERE plate = ?
+    `, [plate]);
+
+    if (existingPlate) {
+      return res.status(400).json({ error: 'License plate already exists' });
     }
 
     const result = await runQuery(`
@@ -216,6 +250,94 @@ router.post('/characters/:id/vehicles', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error adding vehicle:', error);
     res.status(500).json({ error: 'Failed to add vehicle' });
+  }
+});
+
+// Update vehicle
+router.put('/vehicles/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { make, model, color, plate, registration_status, insurance_status } = req.body;
+
+    // Get vehicle and character info
+    const vehicle = await getQuery(`
+      SELECT v.*, c.user_id 
+      FROM civilian_vehicles v
+      JOIN civilian_characters c ON v.character_id = c.id
+      WHERE v.id = ?
+    `, [id]);
+
+    if (!vehicle) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    // Check permissions: owner or judge can edit
+    const isOwner = vehicle.user_id === req.user.id;
+    const isJudge = hasJudgeAccess(req.user);
+
+    if (!isOwner && !isJudge) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!make || !model || !color || !plate) {
+      return res.status(400).json({ error: 'Required fields missing' });
+    }
+
+    // Check if plate already exists (excluding current vehicle)
+    const existingPlate = await getQuery(`
+      SELECT id FROM civilian_vehicles WHERE plate = ? AND id != ?
+    `, [plate, id]);
+
+    if (existingPlate) {
+      return res.status(400).json({ error: 'License plate already exists' });
+    }
+
+    await runQuery(`
+      UPDATE civilian_vehicles SET
+        make = ?, model = ?, color = ?, plate = ?,
+        registration_status = ?, insurance_status = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [make, model, color, plate, registration_status, insurance_status, id]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating vehicle:', error);
+    res.status(500).json({ error: 'Failed to update vehicle' });
+  }
+});
+
+// Delete vehicle
+router.delete('/vehicles/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get vehicle and character info
+    const vehicle = await getQuery(`
+      SELECT v.*, c.user_id 
+      FROM civilian_vehicles v
+      JOIN civilian_characters c ON v.character_id = c.id
+      WHERE v.id = ?
+    `, [id]);
+
+    if (!vehicle) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    // Check permissions: owner or judge can delete
+    const isOwner = vehicle.user_id === req.user.id;
+    const isJudge = hasJudgeAccess(req.user);
+
+    if (!isOwner && !isJudge) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    await runQuery(`DELETE FROM civilian_vehicles WHERE id = ?`, [id]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting vehicle:', error);
+    res.status(500).json({ error: 'Failed to delete vehicle' });
   }
 });
 
