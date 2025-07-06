@@ -20,6 +20,7 @@ import apiRoutes from './routes/api.js';
 import profileRoutes from './routes/profile.js';
 import timeclockRoutes from './routes/timeclock.js';
 import departmentsRoutes from './routes/departments.js';
+import dmvRoutes from './routes/dmv.js';
 
 // Load environment variables
 dotenv.config();
@@ -125,14 +126,14 @@ async function startServer() {
     try {
       await initializeStaffDatabase();
     } catch (error) {
-      console.warn('?? Staff database not available - profile features will be limited');
+      console.warn('⚠️ Staff database not available - profile features will be limited');
     }
     
     // Initialize timeclock database (optional)
     try {
       await initializeTimeclockDatabase();
     } catch (error) {
-      console.warn('?? Timeclock database not available - timeclock features will be limited');
+      console.warn('⚠️ Timeclock database not available - timeclock features will be limited');
     }
     
     // Configure passport
@@ -158,6 +159,7 @@ async function startServer() {
     app.use('/api/profile', profileRoutes);
     app.use('/api/timeclock', timeclockRoutes);
     app.use('/api/departments', departmentsRoutes);
+    app.use('/api/dmv', dmvRoutes);
     
     // Health check endpoint with enhanced session info
     app.get('/health', (req, res) => {
@@ -202,7 +204,7 @@ async function startServer() {
     
     // Global error handling middleware
     app.use((err, req, res, next) => {
-      console.error('? Server Error:', err);
+      console.error('🚨 Server Error:', err);
       
       // Don't leak error details in production
       const errorMessage = NODE_ENV === 'production' 
@@ -221,22 +223,22 @@ async function startServer() {
     });
     
     const server = app.listen(PORT, () => {
-      console.log(`?? Server running on port ${PORT}`);
-      console.log(`?? Environment: ${NODE_ENV}`);
-      console.log(`?? Trust Proxy: ${app.get('trust proxy')}`);
-      console.log(`?? Session Config:`, {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${NODE_ENV}`);
+      console.log(`🔒 Trust Proxy: ${app.get('trust proxy')}`);
+      console.log(`🍪 Session Config:`, {
         secure: sessionConfig.cookie.secure,
         sameSite: sessionConfig.cookie.sameSite,
         domain: sessionConfig.cookie.domain,
         proxy: sessionConfig.proxy
       });
       if (NODE_ENV === 'development') {
-        console.log(`?? Auth URL: http://localhost:${PORT}/auth/discord`);
+        console.log(`🔐 Auth URL: http://localhost:${PORT}/auth/discord`);
       } else {
-        console.log(`?? Production API: https://hubapi.lynus.gg`);
-        console.log(`?? Production Frontend: https://hub.lynus.gg`);
-        console.log(`?? Auth URL: https://hubapi.lynus.gg/auth/discord`);
-        console.log(`?? IMPORTANT: Ensure NGINX forwards these headers:`);
+        console.log(`🌐 Production API: https://hubapi.lynus.gg`);
+        console.log(`🌐 Production Frontend: https://hub.lynus.gg`);
+        console.log(`🔐 Auth URL: https://hubapi.lynus.gg/auth/discord`);
+        console.log(`⚠️ IMPORTANT: Ensure NGINX forwards these headers:`);
         console.log(`   - X-Forwarded-Proto: https`);
         console.log(`   - X-Forwarded-For: $remote_addr`);
         console.log(`   - X-Forwarded-Host: $host`);

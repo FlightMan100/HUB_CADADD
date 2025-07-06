@@ -19,9 +19,9 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-console.log('?? API Base URL:', API_BASE_URL);
-console.log('?? Environment:', import.meta.env.MODE);
-console.log('?? Current Origin:', window.location.origin);
+console.log('🔗 API Base URL:', API_BASE_URL);
+console.log('🌍 Environment:', import.meta.env.MODE);
+console.log('🌐 Current Origin:', window.location.origin);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -35,7 +35,7 @@ const api = axios.create({
 // CRITICAL: Enhanced request interceptor for debugging cross-domain issues
 api.interceptors.request.use(
   (config) => {
-    console.log('?? API Request:', {
+    console.log('📤 API Request:', {
       method: config.method?.toUpperCase(),
       url: config.url,
       baseURL: config.baseURL,
@@ -47,7 +47,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('? Request Error:', error);
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -55,7 +55,7 @@ api.interceptors.request.use(
 // CRITICAL: Enhanced response interceptor for debugging authentication issues
 api.interceptors.response.use(
   (response) => {
-    console.log('? API Response:', {
+    console.log('✅ API Response:', {
       status: response.status,
       url: response.config.url,
       headers: response.headers,
@@ -65,7 +65,7 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('? Response Error:', {
+    console.error('❌ Response Error:', {
       status: error.response?.status,
       url: error.config?.url,
       message: error.message,
@@ -80,8 +80,8 @@ api.interceptors.response.use(
     
     // CRITICAL: Don't auto-redirect on 401 - let components handle it
     if (error.response?.status === 401) {
-      console.warn('?? Authentication failed - 401 Unauthorized');
-      console.warn('?? Current cookies:', document.cookie);
+      console.warn('⚠️ Authentication failed - 401 Unauthorized');
+      console.warn('🍪 Current cookies:', document.cookie);
     }
     
     return Promise.reject(error);
@@ -167,6 +167,32 @@ export const departmentsAPI = {
   create: (data: any) => api.post('/api/departments', data).then(res => res.data),
   update: (id: string, data: any) => api.put(`/api/departments/${id}`, data).then(res => res.data),
   delete: (id: string) => api.delete(`/api/departments/${id}`).then(res => res.data),
+};
+
+export const dmvAPI = {
+  // Civilian characters
+  getCharacters: () => api.get('/api/dmv/characters').then(res => res.data),
+  createCharacter: (data: any) => api.post('/api/dmv/characters', data).then(res => res.data),
+  getCharacter: (id: string) => api.get(`/api/dmv/characters/${id}`).then(res => res.data),
+  updateCharacter: (id: string, data: any) => api.put(`/api/dmv/characters/${id}`, data).then(res => res.data),
+  
+  // Vehicles
+  addVehicle: (characterId: string, data: any) => 
+    api.post(`/api/dmv/characters/${characterId}/vehicles`, data).then(res => res.data),
+  
+  // LEO functions
+  searchCharacters: (query: string) => 
+    api.get('/api/dmv/search', { params: { query } }).then(res => res.data),
+  issueCitation: (characterId: string, data: any) =>
+    api.post(`/api/dmv/characters/${characterId}/citations`, data).then(res => res.data),
+  fileArrest: (characterId: string, data: any) =>
+    api.post(`/api/dmv/characters/${characterId}/arrests`, data).then(res => res.data),
+  
+  // Judge functions
+  issueWarrant: (characterId: string, data: any) =>
+    api.post(`/api/dmv/characters/${characterId}/warrants`, data).then(res => res.data),
+  completeWarrant: (warrantId: string) =>
+    api.put(`/api/dmv/warrants/${warrantId}/complete`).then(res => res.data),
 };
 
 export const profileAPI = {

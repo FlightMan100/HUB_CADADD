@@ -19,7 +19,8 @@ import {
   Users,
   ShoppingBag,
   Building,
-  Building2
+  Building2,
+  Car
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { categoriesAPI, departmentsAPI } from '../services/api';
@@ -153,6 +154,9 @@ export const Sidebar: React.FC = () => {
 
   // Add applications section
   navigation.push({ name: 'Applications', href: '/applications', icon: FileText });
+
+  // Add DMV section
+  navigation.push({ name: 'DMV', href: '/dmv', icon: Car });
 
   // Add Store button
   navigation.push({ 

@@ -494,6 +494,115 @@ async function createTables() {
       // Index doesn't exist, which is fine
     }
 
+    // NEW: DMV Tables
+
+    // Civilian characters table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS civilian_characters (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        date_of_birth DATE NOT NULL,
+        address TEXT NOT NULL,
+        phone_number VARCHAR(20),
+        profession VARCHAR(255) NOT NULL,
+        gender ENUM('Male', 'Female') NOT NULL,
+        race VARCHAR(100) NOT NULL,
+        hair_color VARCHAR(50) NOT NULL,
+        eye_color VARCHAR(50) NOT NULL,
+        height VARCHAR(20) NOT NULL,
+        weight VARCHAR(20) NOT NULL,
+        backstory TEXT,
+        drivers_license_status ENUM('Valid', 'Suspended', 'Expired') DEFAULT 'Valid',
+        firearms_license_status ENUM('None', 'Suspended', 'Open Carry', 'Concealed') DEFAULT 'None',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_user_id (user_id),
+        INDEX idx_name (name),
+        INDEX idx_date_of_birth (date_of_birth),
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Civilian vehicles table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS civilian_vehicles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        character_id INT NOT NULL,
+        make VARCHAR(100) NOT NULL,
+        model VARCHAR(100) NOT NULL,
+        color VARCHAR(50) NOT NULL,
+        plate VARCHAR(20) NOT NULL UNIQUE,
+        registration_status ENUM('Valid', 'Expired', 'Suspended') DEFAULT 'Valid',
+        insurance_status ENUM('Valid', 'Expired', 'None') DEFAULT 'Valid',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_character_id (character_id),
+        INDEX idx_plate (plate),
+        INDEX idx_make_model (make, model),
+        FOREIGN KEY (character_id) REFERENCES civilian_characters (id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Civilian citations table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS civilian_citations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        character_id INT NOT NULL,
+        violation TEXT NOT NULL,
+        fine_amount DECIMAL(10,2) NOT NULL,
+        notes TEXT,
+        issued_by INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_character_id (character_id),
+        INDEX idx_issued_by (issued_by),
+        INDEX idx_created_at (created_at),
+        FOREIGN KEY (character_id) REFERENCES civilian_characters (id) ON DELETE CASCADE,
+        FOREIGN KEY (issued_by) REFERENCES users (id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Civilian arrests table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS civilian_arrests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        character_id INT NOT NULL,
+        charges TEXT NOT NULL,
+        location VARCHAR(255) NOT NULL,
+        notes TEXT,
+        arrested_by INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_character_id (character_id),
+        INDEX idx_arrested_by (arrested_by),
+        INDEX idx_created_at (created_at),
+        FOREIGN KEY (character_id) REFERENCES civilian_characters (id) ON DELETE CASCADE,
+        FOREIGN KEY (arrested_by) REFERENCES users (id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Civilian warrants table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS civilian_warrants (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        character_id INT NOT NULL,
+        charges TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        status ENUM('Active', 'Completed') DEFAULT 'Active',
+        issued_by INT NOT NULL,
+        completed_by INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        INDEX idx_character_id (character_id),
+        INDEX idx_status (status),
+        INDEX idx_issued_by (issued_by),
+        INDEX idx_completed_by (completed_by),
+        INDEX idx_created_at (created_at),
+        FOREIGN KEY (character_id) REFERENCES civilian_characters (id) ON DELETE CASCADE,
+        FOREIGN KEY (issued_by) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (completed_by) REFERENCES users (id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // Create default category if none exist
     const [existingCategories] = await pool.execute('SELECT COUNT(*) as count FROM categories');
     if (existingCategories[0].count === 0) {
